@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package flux;
+
+option go_package = "flux/proto";
+
+// Flux service - Master
+service FluxService {
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+// Agent service - Worker
+service AgentService {
+  rpc RegisterFunction(FunctionConfig) returns (FunctionAck);
+  rpc DeployFunction(DeploymentPackage) returns (DeploymentAck);
+  rpc ExecuteFunction(ExecutionRequest) returns (ExecutionResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message RegisterAgentRequest {
+  string agent_id = 1;
+  string address = 2;
+  int32 max_concurrent = 3;
+}
+
+message RegisterAgentResponse {
+  bool success = 1;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  int32 active_count = 2;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+}
+
+message DeploymentPackage {
+  string function_name = 1;
+  bytes code_archive = 2;
+  FunctionConfig config = 3;
+}
+
+message DeploymentAck {
+  bool success = 1;
+  string message = 2;
+}
+
+message FunctionConfig {
+  string name = 1;
+  string handler = 2;
+  int32 cpu_millicores = 3;
+  int64 memory_mb = 4;
+  int32 timeout_seconds = 5;
+}
+
+message FunctionAck {
+  bool success = 1;
+  string message = 2;
+}
+
+message ExecutionRequest {
+  string function_name = 1;
+  bytes input = 2;
+}
+
+message ExecutionResponse {
+  bytes output = 1;
+  string error = 2;
+  int64 duration_ms = 3;
+}
+
+message HealthCheckRequest {
+}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+}
