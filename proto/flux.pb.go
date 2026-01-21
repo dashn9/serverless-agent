@@ -340,6 +340,7 @@ type FunctionConfig struct {
 	CpuMillicores  int32                  `protobuf:"varint,3,opt,name=cpu_millicores,json=cpuMillicores,proto3" json:"cpu_millicores,omitempty"`
 	MemoryMb       int64                  `protobuf:"varint,4,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`
 	TimeoutSeconds int32                  `protobuf:"varint,5,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	Env            map[string]string      `protobuf:"bytes,6,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -409,6 +410,13 @@ func (x *FunctionConfig) GetTimeoutSeconds() int32 {
 	return 0
 }
 
+func (x *FunctionConfig) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
+
 type FunctionAck struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -464,7 +472,7 @@ func (x *FunctionAck) GetMessage() string {
 type ExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FunctionName  string                 `protobuf:"bytes,1,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
-	Input         []byte                 `protobuf:"bytes,2,opt,name=input,proto3" json:"input,omitempty"`
+	Args          []string               `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -506,9 +514,9 @@ func (x *ExecutionRequest) GetFunctionName() string {
 	return ""
 }
 
-func (x *ExecutionRequest) GetInput() []byte {
+func (x *ExecutionRequest) GetArgs() []string {
 	if x != nil {
-		return x.Input
+		return x.Args
 	}
 	return nil
 }
@@ -683,19 +691,23 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x01(\v2\x14.flux.FunctionConfigR\x06config\"C\n" +
 	"\rDeploymentAck\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xab\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x94\x02\n" +
 	"\x0eFunctionConfig\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\ahandler\x18\x02 \x01(\tR\ahandler\x12%\n" +
 	"\x0ecpu_millicores\x18\x03 \x01(\x05R\rcpuMillicores\x12\x1b\n" +
 	"\tmemory_mb\x18\x04 \x01(\x03R\bmemoryMb\x12'\n" +
-	"\x0ftimeout_seconds\x18\x05 \x01(\x05R\x0etimeoutSeconds\"A\n" +
+	"\x0ftimeout_seconds\x18\x05 \x01(\x05R\x0etimeoutSeconds\x12/\n" +
+	"\x03env\x18\x06 \x03(\v2\x1d.flux.FunctionConfig.EnvEntryR\x03env\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"A\n" +
 	"\vFunctionAck\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"M\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"K\n" +
 	"\x10ExecutionRequest\x12#\n" +
-	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12\x14\n" +
-	"\x05input\x18\x02 \x01(\fR\x05input\"b\n" +
+	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12\x12\n" +
+	"\x04args\x18\x02 \x03(\tR\x04args\"b\n" +
 	"\x11ExecutionResponse\x12\x16\n" +
 	"\x06output\x18\x01 \x01(\fR\x06output\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1f\n" +
@@ -727,7 +739,7 @@ func file_proto_flux_proto_rawDescGZIP() []byte {
 	return file_proto_flux_proto_rawDescData
 }
 
-var file_proto_flux_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_flux_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_proto_flux_proto_goTypes = []any{
 	(*RegisterAgentRequest)(nil),  // 0: flux.RegisterAgentRequest
 	(*RegisterAgentResponse)(nil), // 1: flux.RegisterAgentResponse
@@ -741,26 +753,28 @@ var file_proto_flux_proto_goTypes = []any{
 	(*ExecutionResponse)(nil),     // 9: flux.ExecutionResponse
 	(*HealthCheckRequest)(nil),    // 10: flux.HealthCheckRequest
 	(*HealthCheckResponse)(nil),   // 11: flux.HealthCheckResponse
+	nil,                           // 12: flux.FunctionConfig.EnvEntry
 }
 var file_proto_flux_proto_depIdxs = []int32{
 	6,  // 0: flux.DeploymentPackage.config:type_name -> flux.FunctionConfig
-	0,  // 1: flux.FluxService.RegisterAgent:input_type -> flux.RegisterAgentRequest
-	2,  // 2: flux.FluxService.Heartbeat:input_type -> flux.HeartbeatRequest
-	6,  // 3: flux.AgentService.RegisterFunction:input_type -> flux.FunctionConfig
-	4,  // 4: flux.AgentService.DeployFunction:input_type -> flux.DeploymentPackage
-	8,  // 5: flux.AgentService.ExecuteFunction:input_type -> flux.ExecutionRequest
-	10, // 6: flux.AgentService.HealthCheck:input_type -> flux.HealthCheckRequest
-	1,  // 7: flux.FluxService.RegisterAgent:output_type -> flux.RegisterAgentResponse
-	3,  // 8: flux.FluxService.Heartbeat:output_type -> flux.HeartbeatResponse
-	7,  // 9: flux.AgentService.RegisterFunction:output_type -> flux.FunctionAck
-	5,  // 10: flux.AgentService.DeployFunction:output_type -> flux.DeploymentAck
-	9,  // 11: flux.AgentService.ExecuteFunction:output_type -> flux.ExecutionResponse
-	11, // 12: flux.AgentService.HealthCheck:output_type -> flux.HealthCheckResponse
-	7,  // [7:13] is the sub-list for method output_type
-	1,  // [1:7] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	12, // 1: flux.FunctionConfig.env:type_name -> flux.FunctionConfig.EnvEntry
+	0,  // 2: flux.FluxService.RegisterAgent:input_type -> flux.RegisterAgentRequest
+	2,  // 3: flux.FluxService.Heartbeat:input_type -> flux.HeartbeatRequest
+	6,  // 4: flux.AgentService.RegisterFunction:input_type -> flux.FunctionConfig
+	4,  // 5: flux.AgentService.DeployFunction:input_type -> flux.DeploymentPackage
+	8,  // 6: flux.AgentService.ExecuteFunction:input_type -> flux.ExecutionRequest
+	10, // 7: flux.AgentService.HealthCheck:input_type -> flux.HealthCheckRequest
+	1,  // 8: flux.FluxService.RegisterAgent:output_type -> flux.RegisterAgentResponse
+	3,  // 9: flux.FluxService.Heartbeat:output_type -> flux.HeartbeatResponse
+	7,  // 10: flux.AgentService.RegisterFunction:output_type -> flux.FunctionAck
+	5,  // 11: flux.AgentService.DeployFunction:output_type -> flux.DeploymentAck
+	9,  // 12: flux.AgentService.ExecuteFunction:output_type -> flux.ExecutionResponse
+	11, // 13: flux.AgentService.HealthCheck:output_type -> flux.HealthCheckResponse
+	8,  // [8:14] is the sub-list for method output_type
+	2,  // [2:8] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_proto_flux_proto_init() }
@@ -774,7 +788,7 @@ func file_proto_flux_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_flux_proto_rawDesc), len(file_proto_flux_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

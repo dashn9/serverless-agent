@@ -31,12 +31,22 @@ type AgentServer struct {
 	memory        *memory.RedisMemory
 }
 
+func getAppsDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("Failed to get home directory: %v, using ./apps", err)
+		return "./apps"
+	}
+	return filepath.Join(homeDir, "apps")
+}
+
+
 func NewAgentServer(agentID string, maxConcurrent int32, mem *memory.RedisMemory) *AgentServer {
 	return &AgentServer{
 		agentID:       agentID,
 		maxConcurrent: maxConcurrent,
 		activeCount:   0,
-		executor:      executor.NewExecutor("./deployments"),
+		executor:      executor.NewExecutor(getAppsDir()),
 		memory:        mem,
 	}
 }
@@ -52,6 +62,7 @@ func (s *AgentServer) RegisterFunction(ctx context.Context, req *pb.FunctionConf
 			Memory: req.MemoryMb,
 		},
 		Timeout: req.TimeoutSeconds,
+		Env:     req.Env,
 	}
 
 	if err := s.memory.SaveFunction(config); err != nil {
@@ -72,7 +83,7 @@ func (s *AgentServer) DeployFunction(ctx context.Context, req *pb.DeploymentPack
 	}
 
 	// Extract code archive
-	deployPath := filepath.Join("./deployments", req.FunctionName)
+	deployPath := filepath.Join(getAppsDir(), req.FunctionName)
 	if err := os.MkdirAll(deployPath, 0755); err != nil {
 		return &pb.DeploymentAck{Success: false, Message: err.Error()}, nil
 	}
@@ -80,6 +91,11 @@ func (s *AgentServer) DeployFunction(ctx context.Context, req *pb.DeploymentPack
 	// Extract zip (overwrites existing code)
 	if err := extractZip(req.CodeArchive, deployPath); err != nil {
 		return &pb.DeploymentAck{Success: false, Message: err.Error()}, nil
+	}
+
+	// Make all files executable
+	if err := makeExecutableRecursive(deployPath); err != nil {
+		return &pb.DeploymentAck{Success: false, Message: fmt.Sprintf("failed to make files executable: %v", err)}, nil
 	}
 
 	log.Printf("Successfully deployed code for function: %s", req.FunctionName)
@@ -107,22 +123,21 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	}
 
 	start := time.Now()
-	handlerPath := filepath.Join("./deployments", req.FunctionName, config.Handler)
+	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, config.Handler)
 
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Input, config.Timeout, config.Resources.Memory)
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, config.Timeout, config.Resources.Memory, config.Env)
 	duration := time.Since(start).Milliseconds()
 
-	if execErr != nil {
-		return &pb.ExecutionResponse{
-			Error:      execErr.Error(),
-			DurationMs: duration,
-		}, nil
-	}
-
-	return &pb.ExecutionResponse{
+	response := &pb.ExecutionResponse{
 		Output:     output,
 		DurationMs: duration,
-	}, nil
+	}
+
+	if execErr != nil {
+		response.Error = execErr.Error()
+	}
+
+	return response, nil
 }
 
 func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
@@ -130,6 +145,18 @@ func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 		Healthy: true,
 		Version: "1.0.0",
 	}, nil
+}
+
+func makeExecutableRecursive(path string) error {
+	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return os.Chmod(name, 0755)
+		}
+		return nil
+	})
 }
 
 func extractZip(data []byte, destDir string) error {
@@ -200,7 +227,10 @@ func main() {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.MaxRecvMsgSize(50*1024*1024), // 50MB
+		grpc.MaxSendMsgSize(50*1024*1024), // 50MB
+	)
 	pb.RegisterAgentServiceServer(grpcServer, agent)
 
 	log.Printf("Agent %s starting on port %s (max concurrency: %d)...", agentConfig.AgentID, agentConfig.Port, agentConfig.MaxConcurrency)

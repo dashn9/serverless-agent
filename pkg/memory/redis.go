@@ -13,6 +13,7 @@ type FunctionConfig struct {
 	Handler   string
 	Resources ResourceLimits
 	Timeout   int32
+	Env       map[string]string
 }
 
 type ResourceLimits struct {
@@ -26,9 +27,12 @@ type RedisMemory struct {
 }
 
 func NewRedisMemory(addr string) *RedisMemory {
-	client := redis.NewClient(&redis.Options{
-		Addr: addr,
-	})
+	opt, err := redis.ParseURL(addr)
+	if err != nil {
+		panic(err)
+	}
+
+	client := redis.NewClient(opt)
 
 	return &RedisMemory{
 		client: client,

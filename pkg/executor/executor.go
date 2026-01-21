@@ -1,91 +1,109 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"syscall"
 	"time"
+
+	"github.com/containerd/cgroups/v3/cgroup2"
 )
 
 type Executor struct {
-	workDir    string
-	cgroupBase string
+	workDir string
 }
 
 func NewExecutor(workDir string) *Executor {
 	return &Executor{
-		workDir:    workDir,
-		cgroupBase: "/sys/fs/cgroup/agent",
+		workDir: workDir,
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, handler string, input []byte, timeoutSec int32, memoryMB int64) ([]byte, error) {
+func (e *Executor) Execute(ctx context.Context, handler string, args []string, timeoutSec int32, memoryMB int64, env map[string]string) ([]byte, error) {
 	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(execCtx, e.workDir+"/"+handler)
+	cmd := exec.CommandContext(execCtx, handler, args...)
 
-	// Apply memory limit using cgroups if specified
-	var cgroupPath string
-	if memoryMB > 0 {
-		var err error
-		cgroupPath, err = e.setupCgroup(memoryMB)
-		if err != nil {
-			return nil, fmt.Errorf("failed to setup cgroup: %w", err)
+	// Set working directory to the handler's directory
+	cmd.Dir = filepath.Dir(handler)
+
+	// Set environment variables
+	if len(env) > 0 {
+		envList := os.Environ()
+		for k, v := range env {
+			envList = append(envList, fmt.Sprintf("%s=%s", k, v))
 		}
-		defer e.cleanupCgroup(cgroupPath)
+		cmd.Env = envList
 	}
 
-	// Start the process
+	// Capture output
+	var outputBuf bytes.Buffer
+	cmd.Stdout = &outputBuf
+	cmd.Stderr = &outputBuf
+
+	// Run in its own process group for cleanup
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
+	// Start the process first
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start: %w", err)
 	}
 
-	// Move process to cgroup if created
-	if cgroupPath != "" {
-		if err := e.addProcessToCgroup(cgroupPath, cmd.Process.Pid); err != nil {
+	// Apply memory limit using cgroups v2 if specified
+	var manager *cgroup2.Manager
+	if memoryMB > 0 {
+		cgroupName := fmt.Sprintf("flux-exec-%d", time.Now().UnixNano())
+		memoryBytes := memoryMB * 1024 * 1024
+		memoryMax := int64(memoryBytes)
+
+		resources := &cgroup2.Resources{
+			Memory: &cgroup2.Memory{
+				Max: &memoryMax,
+			},
+		}
+
+		mgr, err := cgroup2.NewManager("/sys/fs/cgroup/flux", "/"+cgroupName, resources)
+		if err != nil {
 			cmd.Process.Kill()
-			return nil, fmt.Errorf("failed to add to cgroup: %w", err)
+			return nil, fmt.Errorf("failed to create cgroup: %w", err)
+		}
+		manager = mgr
+		defer manager.Delete()
+
+		// Add process to cgroup
+		if err := manager.AddProc(uint64(cmd.Process.Pid)); err != nil {
+			cmd.Process.Kill()
+			manager.Delete()
+			return nil, fmt.Errorf("failed to add process to cgroup: %w", err)
 		}
 	}
 
 	// Wait for completion
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("execution failed: %w", err)
+	waitErr := cmd.Wait()
+	output := outputBuf.Bytes()
+
+	// Check if timeout occurred
+	if execCtx.Err() == context.DeadlineExceeded {
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return output, fmt.Errorf("execution timed out after %d seconds", timeoutSec)
+	}
+
+	// Return error for any non-zero exit
+	if waitErr != nil {
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			return output, fmt.Errorf("exit code %d", exitErr.ExitCode())
+		}
+		return output, fmt.Errorf("process error: %w", waitErr)
 	}
 
 	return output, nil
-}
-
-func (e *Executor) setupCgroup(memoryMB int64) (string, error) {
-	cgroupName := fmt.Sprintf("exec-%d", time.Now().UnixNano())
-	cgroupPath := filepath.Join(e.cgroupBase, cgroupName)
-
-	if err := os.MkdirAll(cgroupPath, 0755); err != nil {
-		return "", err
-	}
-
-	memoryBytes := memoryMB * 1024 * 1024
-	memoryMaxFile := filepath.Join(cgroupPath, "memory.max")
-	if err := os.WriteFile(memoryMaxFile, []byte(strconv.FormatInt(memoryBytes, 10)), 0644); err != nil {
-		os.RemoveAll(cgroupPath)
-		return "", err
-	}
-
-	return cgroupPath, nil
-}
-
-func (e *Executor) addProcessToCgroup(cgroupPath string, pid int) error {
-	procsFile := filepath.Join(cgroupPath, "cgroup.procs")
-	return os.WriteFile(procsFile, []byte(strconv.Itoa(pid)), 0644)
-}
-
-func (e *Executor) cleanupCgroup(cgroupPath string) {
-	if cgroupPath != "" {
-		os.RemoveAll(cgroupPath)
-	}
 }
