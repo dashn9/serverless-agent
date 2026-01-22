@@ -49,14 +49,13 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	cmd.Dir = workDir
 	log.Printf("Working directory: %s | Handler: %s", workDir, handler)
 
-	// Set environment variables
-	if len(env) > 0 {
-		envList := os.Environ()
-		for k, v := range env {
-			envList = append(envList, fmt.Sprintf("%s=%s", k, v))
-		}
-		cmd.Env = envList
+	// Set environment variables - always inherit and set HOME
+	envList := os.Environ()
+	envList = append(envList, "HOME=/home/flux-runner")
+	for k, v := range env {
+		envList = append(envList, fmt.Sprintf("%s=%s", k, v))
 	}
+	cmd.Env = envList
 
 	// Capture output
 	var outputBuf bytes.Buffer
@@ -92,19 +91,28 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 
 		mgr, err := cgroup2.NewManager("/sys/fs/cgroup/flux", "/"+cgroupName, resources)
 		if err != nil {
-			cmd.Process.Kill()
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 			return nil, fmt.Errorf("failed to create cgroup: %w", err)
 		}
 		manager = mgr
-		defer manager.Delete()
 
 		// Add process to cgroup
 		if err := manager.AddProc(uint64(cmd.Process.Pid)); err != nil {
-			cmd.Process.Kill()
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 			manager.Delete()
 			return nil, fmt.Errorf("failed to add process to cgroup: %w", err)
 		}
 	}
+
+	// Ensure cleanup of process group and cgroup
+	defer func() {
+		if cmd.Process != nil {
+			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		if manager != nil {
+			manager.Delete()
+		}
+	}()
 
 	// Wait for completion
 	waitErr := cmd.Wait()
@@ -112,9 +120,6 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 
 	// Check if timeout occurred
 	if execCtx.Err() == context.DeadlineExceeded {
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
 		return output, fmt.Errorf("execution timed out after %d seconds", timeoutSec)
 	}
 
