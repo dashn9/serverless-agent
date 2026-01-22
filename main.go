@@ -9,7 +9,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,14 +34,13 @@ type AgentServer struct {
 }
 
 func getAppsDir() string {
-	homeDir, err := os.UserHomeDir()
+	u, err := user.Lookup("flux-runner")
 	if err != nil {
-		log.Printf("Failed to get home directory: %v, using ./apps", err)
+		log.Printf("Failed to lookup flux-runner: %v, using ./apps", err)
 		return "./apps"
 	}
-	return filepath.Join(homeDir, "apps")
+	return filepath.Join(u.HomeDir, "apps")
 }
-
 
 func NewAgentServer(agentID string, maxConcurrent int32, mem *memory.RedisMemory) *AgentServer {
 	return &AgentServer{
@@ -93,6 +94,11 @@ func (s *AgentServer) DeployFunction(ctx context.Context, req *pb.DeploymentPack
 		return &pb.DeploymentAck{Success: false, Message: err.Error()}, nil
 	}
 
+	// Change ownership to flux-runner
+	if err := chownToFluxRunner(deployPath); err != nil {
+		return &pb.DeploymentAck{Success: false, Message: fmt.Sprintf("failed to change ownership: %v", err)}, nil
+	}
+
 	// Make all files executable
 	if err := makeExecutableRecursive(deployPath); err != nil {
 		return &pb.DeploymentAck{Success: false, Message: fmt.Sprintf("failed to make files executable: %v", err)}, nil
@@ -106,6 +112,7 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	s.mu.Lock()
 	if s.activeCount >= s.maxConcurrent {
 		s.mu.Unlock()
+		log.Printf("Execution rejected: agent at capacity (%d/%d)", s.activeCount, s.maxConcurrent)
 		return &pb.ExecutionResponse{Error: "agent at capacity"}, nil
 	}
 	s.activeCount++
@@ -119,8 +126,12 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 
 	config, err := s.memory.GetFunction(req.FunctionName)
 	if err != nil || config == nil {
+		log.Printf("Execution failed: function %s not found", req.FunctionName)
 		return &pb.ExecutionResponse{Error: "function not found"}, nil
 	}
+
+	log.Printf("Executing function: %s | timeout: %ds | memory: %dMB | args: %v",
+		req.FunctionName, config.Timeout, config.Resources.Memory, req.Args)
 
 	start := time.Now()
 	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, config.Handler)
@@ -135,6 +146,9 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 
 	if execErr != nil {
 		response.Error = execErr.Error()
+		log.Printf("Execution failed: %s | duration: %dms | error: %s", req.FunctionName, duration, execErr.Error())
+	} else {
+		log.Printf("Execution completed: %s | duration: %dms", req.FunctionName, duration)
 	}
 
 	return response, nil
@@ -145,6 +159,22 @@ func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 		Healthy: true,
 		Version: "1.0.0",
 	}, nil
+}
+
+func chownToFluxRunner(path string) error {
+	u, err := user.Lookup("flux-runner")
+	if err != nil {
+		return err
+	}
+	uid, _ := strconv.ParseInt(u.Uid, 10, 32)
+	gid, _ := strconv.ParseInt(u.Gid, 10, 32)
+
+	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chown(name, int(uid), int(gid))
+	})
 }
 
 func makeExecutableRecursive(path string) error {

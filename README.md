@@ -1,5 +1,11 @@
 # Flux Agent Setup
 
+## Create flux-runner User
+
+```bash
+sudo useradd -r -m -s /bin/bash flux-runner
+```
+
 ## Install Agent
 
 ```bash
@@ -22,4 +28,4 @@ redis_addr: redis://localhost:6379
 sudo ./agent-linux
 ```
 
-Agent runs as root to manage cgroups. Functions deploy to `~/apps/` and execute as root.
+Agent runs as root to manage cgroups. Functions deploy to `/home/flux-runner/apps/` and execute as flux-runner user.

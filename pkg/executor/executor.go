@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -14,12 +17,24 @@ import (
 )
 
 type Executor struct {
-	workDir string
+	workDir   string
+	runnerUID uint32
+	runnerGID uint32
 }
 
 func NewExecutor(workDir string) *Executor {
+	// Lookup flux-runner user
+	u, err := user.Lookup("flux-runner")
+	if err != nil {
+		log.Fatalf("flux-runner user not found: %v. Please create it first.", err)
+	}
+	uid, _ := strconv.ParseUint(u.Uid, 10, 32)
+	gid, _ := strconv.ParseUint(u.Gid, 10, 32)
+
 	return &Executor{
-		workDir: workDir,
+		workDir:   workDir,
+		runnerUID: uint32(uid),
+		runnerGID: uint32(gid),
 	}
 }
 
@@ -30,7 +45,9 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	cmd := exec.CommandContext(execCtx, handler, args...)
 
 	// Set working directory to the handler's directory
-	cmd.Dir = filepath.Dir(handler)
+	workDir := filepath.Dir(handler)
+	cmd.Dir = workDir
+	log.Printf("Working directory: %s | Handler: %s", workDir, handler)
 
 	// Set environment variables
 	if len(env) > 0 {
@@ -46,8 +63,12 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = &outputBuf
 
-	// Run in its own process group for cleanup
+	// Run as flux-runner user
 	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: e.runnerUID,
+			Gid: e.runnerGID,
+		},
 		Setpgid: true,
 	}
 
@@ -92,7 +113,7 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	// Check if timeout occurred
 	if execCtx.Err() == context.DeadlineExceeded {
 		if cmd.Process != nil {
-			syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			cmd.Process.Kill()
 		}
 		return output, fmt.Errorf("execution timed out after %d seconds", timeoutSec)
 	}
