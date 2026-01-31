@@ -1,5 +1,15 @@
 # Flux Agent Setup
 
+## ⚠️ SECURITY WARNING
+
+**Agent gRPC communication is currently INSECURE**
+
+- No TLS encryption (all traffic in plaintext)
+- No authentication (anyone can connect and execute functions)
+- Functions receive deployment code and secrets unencrypted
+
+**PRIORITY**: Implement mTLS before production use.
+
 ## Create flux-runner User
 
 ```bash

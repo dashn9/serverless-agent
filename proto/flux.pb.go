@@ -334,15 +334,17 @@ func (x *DeploymentAck) GetMessage() string {
 }
 
 type FunctionConfig struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Handler        string                 `protobuf:"bytes,2,opt,name=handler,proto3" json:"handler,omitempty"`
-	CpuMillicores  int32                  `protobuf:"varint,3,opt,name=cpu_millicores,json=cpuMillicores,proto3" json:"cpu_millicores,omitempty"`
-	MemoryMb       int64                  `protobuf:"varint,4,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`
-	TimeoutSeconds int32                  `protobuf:"varint,5,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
-	Env            map[string]string      `protobuf:"bytes,6,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Name                   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Handler                string                 `protobuf:"bytes,2,opt,name=handler,proto3" json:"handler,omitempty"`
+	CpuMillicores          int32                  `protobuf:"varint,3,opt,name=cpu_millicores,json=cpuMillicores,proto3" json:"cpu_millicores,omitempty"`
+	MemoryMb               int64                  `protobuf:"varint,4,opt,name=memory_mb,json=memoryMb,proto3" json:"memory_mb,omitempty"`
+	TimeoutSeconds         int32                  `protobuf:"varint,5,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	Env                    map[string]string      `protobuf:"bytes,6,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	MaxConcurrency         int32                  `protobuf:"varint,7,opt,name=max_concurrency,json=maxConcurrency,proto3" json:"max_concurrency,omitempty"`
+	MaxConcurrencyBehavior string                 `protobuf:"bytes,8,opt,name=max_concurrency_behavior,json=maxConcurrencyBehavior,proto3" json:"max_concurrency_behavior,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *FunctionConfig) Reset() {
@@ -415,6 +417,20 @@ func (x *FunctionConfig) GetEnv() map[string]string {
 		return x.Env
 	}
 	return nil
+}
+
+func (x *FunctionConfig) GetMaxConcurrency() int32 {
+	if x != nil {
+		return x.MaxConcurrency
+	}
+	return 0
+}
+
+func (x *FunctionConfig) GetMaxConcurrencyBehavior() string {
+	if x != nil {
+		return x.MaxConcurrencyBehavior
+	}
+	return ""
 }
 
 type FunctionAck struct {
@@ -691,14 +707,16 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x01(\v2\x14.flux.FunctionConfigR\x06config\"C\n" +
 	"\rDeploymentAck\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x94\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xf7\x02\n" +
 	"\x0eFunctionConfig\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\ahandler\x18\x02 \x01(\tR\ahandler\x12%\n" +
 	"\x0ecpu_millicores\x18\x03 \x01(\x05R\rcpuMillicores\x12\x1b\n" +
 	"\tmemory_mb\x18\x04 \x01(\x03R\bmemoryMb\x12'\n" +
 	"\x0ftimeout_seconds\x18\x05 \x01(\x05R\x0etimeoutSeconds\x12/\n" +
-	"\x03env\x18\x06 \x03(\v2\x1d.flux.FunctionConfig.EnvEntryR\x03env\x1a6\n" +
+	"\x03env\x18\x06 \x03(\v2\x1d.flux.FunctionConfig.EnvEntryR\x03env\x12'\n" +
+	"\x0fmax_concurrency\x18\a \x01(\x05R\x0emaxConcurrency\x128\n" +
+	"\x18max_concurrency_behavior\x18\b \x01(\tR\x16maxConcurrencyBehavior\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"A\n" +

@@ -25,12 +25,13 @@ import (
 
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
-	agentID       string
-	maxConcurrent int32
-	activeCount   int32
-	mu            sync.Mutex
-	executor      *executor.Executor
-	memory        *memory.RedisMemory
+	agentID          string
+	maxConcurrent    int32
+	activeCount      int32
+	funcActiveCounts map[string]int32
+	mu               sync.Mutex
+	executor         *executor.Executor
+	memory           *memory.RedisMemory
 }
 
 func getAppsDir() string {
@@ -44,11 +45,12 @@ func getAppsDir() string {
 
 func NewAgentServer(agentID string, maxConcurrent int32, mem *memory.RedisMemory) *AgentServer {
 	return &AgentServer{
-		agentID:       agentID,
-		maxConcurrent: maxConcurrent,
-		activeCount:   0,
-		executor:      executor.NewExecutor(getAppsDir()),
-		memory:        mem,
+		agentID:          agentID,
+		maxConcurrent:    maxConcurrent,
+		activeCount:      0,
+		funcActiveCounts: make(map[string]int32),
+		executor:         executor.NewExecutor(getAppsDir()),
+		memory:           mem,
 	}
 }
 
@@ -62,8 +64,10 @@ func (s *AgentServer) RegisterFunction(ctx context.Context, req *pb.FunctionConf
 			CPU:    req.CpuMillicores,
 			Memory: req.MemoryMb,
 		},
-		Timeout: req.TimeoutSeconds,
-		Env:     req.Env,
+		Timeout:                req.TimeoutSeconds,
+		Env:                    req.Env,
+		MaxConcurrency:         req.MaxConcurrency,
+		MaxConcurrencyBehavior: req.MaxConcurrencyBehavior,
 	}
 
 	if err := s.memory.SaveFunction(config); err != nil {
@@ -109,34 +113,48 @@ func (s *AgentServer) DeployFunction(ctx context.Context, req *pb.DeploymentPack
 }
 
 func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequest) (*pb.ExecutionResponse, error) {
+	// First check if function exists and get its config
+	cfg, err := s.memory.GetFunction(req.FunctionName)
+	if err != nil || cfg == nil {
+		log.Printf("Execution failed: function %s not found", req.FunctionName)
+		return &pb.ExecutionResponse{Error: "function not found"}, nil
+	}
+
 	s.mu.Lock()
+
+	// Check agent-wide capacity
 	if s.activeCount >= s.maxConcurrent {
 		s.mu.Unlock()
 		log.Printf("Execution rejected: agent at capacity (%d/%d)", s.activeCount, s.maxConcurrent)
 		return &pb.ExecutionResponse{Error: "agent at capacity"}, nil
 	}
+
+	// Check function-specific capacity
+	if cfg.MaxConcurrency > 0 && s.funcActiveCounts[req.FunctionName] >= cfg.MaxConcurrency {
+		s.mu.Unlock()
+		log.Printf("Execution rejected: function %s at capacity (%d/%d)", req.FunctionName, s.funcActiveCounts[req.FunctionName], cfg.MaxConcurrency)
+		return &pb.ExecutionResponse{Error: fmt.Sprintf("function %s at capacity", req.FunctionName)}, nil
+	}
+
+	// Increment counts
 	s.activeCount++
+	s.funcActiveCounts[req.FunctionName]++
 	s.mu.Unlock()
 
 	defer func() {
 		s.mu.Lock()
 		s.activeCount--
+		s.funcActiveCounts[req.FunctionName]--
 		s.mu.Unlock()
 	}()
 
-	config, err := s.memory.GetFunction(req.FunctionName)
-	if err != nil || config == nil {
-		log.Printf("Execution failed: function %s not found", req.FunctionName)
-		return &pb.ExecutionResponse{Error: "function not found"}, nil
-	}
-
 	log.Printf("Executing function: %s | timeout: %ds | memory: %dMB | args: %v",
-		req.FunctionName, config.Timeout, config.Resources.Memory, req.Args)
+		req.FunctionName, cfg.Timeout, cfg.Resources.Memory, req.Args)
 
 	start := time.Now()
-	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, config.Handler)
+	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, cfg.Handler)
 
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, config.Timeout, config.Resources.Memory, config.Env)
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env)
 	duration := time.Since(start).Milliseconds()
 
 	response := &pb.ExecutionResponse{

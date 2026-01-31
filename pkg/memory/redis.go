@@ -9,11 +9,13 @@ import (
 )
 
 type FunctionConfig struct {
-	Name      string
-	Handler   string
-	Resources ResourceLimits
-	Timeout   int32
-	Env       map[string]string
+	Name                   string
+	Handler                string
+	Resources              ResourceLimits
+	Timeout                int32
+	MaxConcurrency         int32
+	MaxConcurrencyBehavior string
+	Env                    map[string]string
 }
 
 type ResourceLimits struct {

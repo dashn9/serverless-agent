@@ -55,6 +55,8 @@ message FunctionConfig {
   int64 memory_mb = 4;
   int32 timeout_seconds = 5;
   map<string, string> env = 6;
+  int32 max_concurrency = 7;
+  string max_concurrency_behavior = 8;
 }
 
 message FunctionAck {
