@@ -49,7 +49,7 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	cmd.Dir = workDir
 	log.Printf("Working directory: %s | Handler: %s", workDir, handler)
 
-	// Set environment variables - always inherit and set HOME
+	// Set environment variables - always inherit and set HOM
 	envList := os.Environ()
 	envList = append(envList, "HOME=/home/flux-runner")
 	for k, v := range env {
