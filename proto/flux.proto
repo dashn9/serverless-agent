@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package flux;
 
-option go_package = "flux/proto";
+option go_package = "agent/proto";
 
 // Flux service - Master
 service FluxService {
@@ -16,6 +16,7 @@ service AgentService {
   rpc DeployFunction(DeploymentPackage) returns (DeploymentAck);
   rpc ExecuteFunction(ExecutionRequest) returns (ExecutionResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc ReportNodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
 }
 
 message RegisterAgentRequest {
@@ -81,4 +82,19 @@ message HealthCheckRequest {
 message HealthCheckResponse {
   bool healthy = 1;
   string version = 2;
+}
+
+// Node status reporting
+message NodeStatusRequest {
+}
+
+message NodeStatusResponse {
+  string agent_id = 1;
+  double cpu_percent = 2;
+  double memory_percent = 3;
+  uint64 memory_total_mb = 4;
+  uint64 memory_used_mb = 5;
+  int32 active_tasks = 6;
+  int32 max_tasks = 7;
+  int64 uptime_seconds = 8;
 }

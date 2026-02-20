@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
 	"log"
@@ -18,20 +20,22 @@ import (
 	"agent/pkg/config"
 	"agent/pkg/executor"
 	"agent/pkg/memory"
+	"agent/pkg/monitor"
 	pb "agent/proto"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
 	agentID          string
-	maxConcurrent    int32
-	activeCount      int32
 	funcActiveCounts map[string]int32
 	mu               sync.Mutex
 	executor         *executor.Executor
 	memory           *memory.RedisMemory
+	monitor          *monitor.NodeMonitor
 }
 
 func getAppsDir() string {
@@ -43,14 +47,13 @@ func getAppsDir() string {
 	return filepath.Join(u.HomeDir, "apps")
 }
 
-func NewAgentServer(agentID string, maxConcurrent int32, mem *memory.RedisMemory) *AgentServer {
+func NewAgentServer(agentID string, mem *memory.RedisMemory, mon *monitor.NodeMonitor) *AgentServer {
 	return &AgentServer{
 		agentID:          agentID,
-		maxConcurrent:    maxConcurrent,
-		activeCount:      0,
 		funcActiveCounts: make(map[string]int32),
 		executor:         executor.NewExecutor(getAppsDir()),
 		memory:           mem,
+		monitor:          mon,
 	}
 }
 
@@ -121,29 +124,16 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	}
 
 	s.mu.Lock()
-
-	// Check agent-wide capacity
-	if s.activeCount >= s.maxConcurrent {
-		s.mu.Unlock()
-		log.Printf("Execution rejected: agent at capacity (%d/%d)", s.activeCount, s.maxConcurrent)
-		return &pb.ExecutionResponse{Error: "agent at capacity"}, nil
-	}
-
-	// Check function-specific capacity
 	if cfg.MaxConcurrency > 0 && s.funcActiveCounts[req.FunctionName] >= cfg.MaxConcurrency {
 		s.mu.Unlock()
 		log.Printf("Execution rejected: function %s at capacity (%d/%d)", req.FunctionName, s.funcActiveCounts[req.FunctionName], cfg.MaxConcurrency)
 		return &pb.ExecutionResponse{Error: fmt.Sprintf("function %s at capacity", req.FunctionName)}, nil
 	}
-
-	// Increment counts
-	s.activeCount++
 	s.funcActiveCounts[req.FunctionName]++
 	s.mu.Unlock()
 
 	defer func() {
 		s.mu.Lock()
-		s.activeCount--
 		s.funcActiveCounts[req.FunctionName]--
 		s.mu.Unlock()
 	}()
@@ -179,6 +169,27 @@ func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckReques
 	}, nil
 }
 
+func (s *AgentServer) ReportNodeStatus(ctx context.Context, req *pb.NodeStatusRequest) (*pb.NodeStatusResponse, error) {
+	snap := s.monitor.Snapshot()
+
+	s.mu.Lock()
+	var activeTasks int32
+	for _, count := range s.funcActiveCounts {
+		activeTasks += count
+	}
+	s.mu.Unlock()
+
+	return &pb.NodeStatusResponse{
+		AgentId:       s.agentID,
+		CpuPercent:    snap.CPUPercent,
+		MemoryPercent: snap.MemPercent,
+		MemoryTotalMb: snap.MemTotalMB,
+		MemoryUsedMb:  snap.MemUsedMB,
+		ActiveTasks:   activeTasks,
+		UptimeSeconds: snap.UptimeSec,
+	}, nil
+}
+
 func chownToFluxRunner(path string) error {
 	u, err := user.Lookup("flux-runner")
 	if err != nil {
@@ -205,6 +216,31 @@ func makeExecutableRecursive(path string) error {
 		}
 		return nil
 	})
+}
+
+// loadTLSCredentials builds mTLS server credentials from the agent's TLS config.
+// The agent presents its own cert/key to Flux, and verifies Flux's cert against the CA.
+func loadTLSCredentials(tlsCfg *config.TLSConfig) (credentials.TransportCredentials, error) {
+	cert, err := tls.LoadX509KeyPair(tlsCfg.CertFile, tlsCfg.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load agent cert/key: %w", err)
+	}
+
+	caData, err := os.ReadFile(tlsCfg.CACert)
+	if err != nil {
+		return nil, fmt.Errorf("read CA cert: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caData) {
+		return nil, fmt.Errorf("failed to parse CA certificate")
+	}
+
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    pool,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}
+	return credentials.NewTLS(cfg), nil
 }
 
 func extractZip(data []byte, destDir string) error {
@@ -267,7 +303,11 @@ func main() {
 	defer mem.Close()
 	log.Printf("Connected to Redis at %s", agentConfig.RedisAddr)
 
-	agent := NewAgentServer(agentConfig.AgentID, agentConfig.MaxConcurrency, mem)
+	// Start node monitor (samples every 5 seconds)
+	mon := monitor.NewNodeMonitor(5 * time.Second)
+	log.Printf("Node monitor started (sampling every 5s)")
+
+	agent := NewAgentServer(agentConfig.AgentID, mem, mon)
 
 	// Start gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", agentConfig.Port))
@@ -275,13 +315,26 @@ func main() {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer(
-		grpc.MaxRecvMsgSize(50*1024*1024), // 50MB
-		grpc.MaxSendMsgSize(50*1024*1024), // 50MB
-	)
+	serverOpts := []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(50 * 1024 * 1024),
+		grpc.MaxSendMsgSize(50 * 1024 * 1024),
+	}
+
+	if agentConfig.TLS != nil && agentConfig.TLS.Enabled {
+		creds, err := loadTLSCredentials(agentConfig.TLS)
+		if err != nil {
+			log.Fatalf("Failed to load TLS credentials: %v", err)
+		}
+		serverOpts = append(serverOpts, grpc.Creds(creds))
+		log.Printf("mTLS enabled on agent gRPC server")
+	} else {
+		serverOpts = append(serverOpts, grpc.Creds(insecure.NewCredentials()))
+	}
+
+	grpcServer := grpc.NewServer(serverOpts...)
 	pb.RegisterAgentServiceServer(grpcServer, agent)
 
-	log.Printf("Agent %s starting on port %s (max concurrency: %d)...", agentConfig.AgentID, agentConfig.Port, agentConfig.MaxConcurrency)
+	log.Printf("Agent %s starting on port %s...", agentConfig.AgentID, agentConfig.Port)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}

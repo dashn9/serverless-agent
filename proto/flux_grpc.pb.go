@@ -167,6 +167,7 @@ const (
 	AgentService_DeployFunction_FullMethodName   = "/flux.AgentService/DeployFunction"
 	AgentService_ExecuteFunction_FullMethodName  = "/flux.AgentService/ExecuteFunction"
 	AgentService_HealthCheck_FullMethodName      = "/flux.AgentService/HealthCheck"
+	AgentService_ReportNodeStatus_FullMethodName = "/flux.AgentService/ReportNodeStatus"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -179,6 +180,7 @@ type AgentServiceClient interface {
 	DeployFunction(ctx context.Context, in *DeploymentPackage, opts ...grpc.CallOption) (*DeploymentAck, error)
 	ExecuteFunction(ctx context.Context, in *ExecutionRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	ReportNodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error)
 }
 
 type agentServiceClient struct {
@@ -229,6 +231,16 @@ func (c *agentServiceClient) HealthCheck(ctx context.Context, in *HealthCheckReq
 	return out, nil
 }
 
+func (c *agentServiceClient) ReportNodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NodeStatusResponse)
+	err := c.cc.Invoke(ctx, AgentService_ReportNodeStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -239,6 +251,7 @@ type AgentServiceServer interface {
 	DeployFunction(context.Context, *DeploymentPackage) (*DeploymentAck, error)
 	ExecuteFunction(context.Context, *ExecutionRequest) (*ExecutionResponse, error)
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
+	ReportNodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -260,6 +273,9 @@ func (UnimplementedAgentServiceServer) ExecuteFunction(context.Context, *Executi
 }
 func (UnimplementedAgentServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
+}
+func (UnimplementedAgentServiceServer) ReportNodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportNodeStatus not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -354,6 +370,24 @@ func _AgentService_HealthCheck_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ReportNodeStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NodeStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ReportNodeStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ReportNodeStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ReportNodeStatus(ctx, req.(*NodeStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -376,6 +410,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HealthCheck",
 			Handler:    _AgentService_HealthCheck_Handler,
+		},
+		{
+			MethodName: "ReportNodeStatus",
+			Handler:    _AgentService_ReportNodeStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
