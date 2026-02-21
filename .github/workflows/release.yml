@@ -1,0 +1,142 @@
+name: Release .deb Package
+
+on:
+  # push:
+  #   tags:
+  #     - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (e.g. 1.0.0)"
+        required: true
+        default: "0.1.0"
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve version
+        id: ver
+        run: |
+          echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-s -w" \
+            -o flux-agent \
+            .
+
+      - name: Build .deb package
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          PKG="flux-agent_${VERSION}_amd64"
+
+          # --- directory layout ---
+          mkdir -p "${PKG}/DEBIAN"
+          mkdir -p "${PKG}/usr/local/bin"
+          mkdir -p "${PKG}/etc/flux-agent"
+          mkdir -p "${PKG}/usr/lib/tmpfiles.d"
+          mkdir -p "${PKG}/lib/systemd/system"
+
+          cp flux-agent "${PKG}/usr/local/bin/flux-agent"
+          chmod 0755   "${PKG}/usr/local/bin/flux-agent"
+
+          cp example.agent.yaml "${PKG}/etc/flux-agent/agent.yaml.example"
+
+          # --- DEBIAN/control ---
+          cat > "${PKG}/DEBIAN/control" << EOF
+          Package: flux-agent
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: WraithBytes <noreply@wraithbytes.dev>
+          Depends: libc6
+          Section: utils
+          Priority: optional
+          Description: Serverless Fabric agent daemon
+           Worker node for the Serverless Fabric platform. Executes
+           serverless functions under cgroup v2 memory limits using
+           a dedicated unprivileged system user (flux-runner).
+          EOF
+
+          # remove leading whitespace dpkg-deb is strict about
+          sed -i 's/^          //' "${PKG}/DEBIAN/control"
+
+          # --- DEBIAN/postinst ---
+          cat > "${PKG}/DEBIAN/postinst" << 'EOF'
+          #!/bin/bash
+          set -e
+
+          # Create unprivileged execution user
+          if ! id flux-runner &>/dev/null; then
+            useradd \
+              --system \
+              --no-create-home \
+              --shell /usr/sbin/nologin \
+              --comment "Serverless Fabric function runner" \
+              flux-runner
+          fi
+
+          systemctl daemon-reload || true
+          EOF
+
+          sed -i 's/^          //' "${PKG}/DEBIAN/postinst"
+          chmod 0755 "${PKG}/DEBIAN/postinst"
+
+          # --- tmpfiles.d: recreate cgroup dir on boot ---
+          cat > "${PKG}/usr/lib/tmpfiles.d/flux-agent.conf" << 'EOF'
+          d /sys/fs/cgroup/flux 0755 root root -
+          EOF
+
+          sed -i 's/^          //' "${PKG}/usr/lib/tmpfiles.d/flux-agent.conf"
+
+          # --- systemd unit ---
+          cat > "${PKG}/lib/systemd/system/flux-agent.service" << 'EOF'
+          [Unit]
+          Description=Serverless Fabric Agent
+          Documentation=https://github.com/wraithbytes/serverless-fabric
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/local/bin/flux-agent
+          WorkingDirectory=/etc/flux-agent
+          Restart=on-failure
+          RestartSec=5s
+          # The agent itself must run as root to manage cgroups;
+          # individual functions are dropped to flux-runner via SysProcAttr.
+          User=root
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          sed -i 's/^          //' "${PKG}/lib/systemd/system/flux-agent.service"
+
+          # --- build the .deb ---
+          dpkg-deb --build --root-owner-group "${PKG}"
+
+          echo "DEB_FILE=${PKG}.deb" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release and upload .deb
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.ver.outputs.version }}"
+          name: "flux-agent v${{ steps.ver.outputs.version }}"
+          generate_release_notes: true
+          files: "*.deb"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

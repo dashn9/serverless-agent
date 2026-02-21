@@ -1,3 +1,5 @@
+//go:build linux
+
 package executor
 
 import (
@@ -49,7 +51,7 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	cmd.Dir = workDir
 	log.Printf("Working directory: %s | Handler: %s", workDir, handler)
 
-	// Set environment variables - always inherit and set HOM
+	// Set environment variables - always inherit and set HOME
 	envList := os.Environ()
 	envList = append(envList, "HOME=/home/flux-runner")
 	for k, v := range env {
