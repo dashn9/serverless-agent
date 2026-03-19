@@ -47,7 +47,7 @@ jobs:
           	Package: flux-agent
           	Version: ${VERSION}
           	Architecture: amd64
-          	Maintainer: WraithBytes <noreply@wraithbytes.dev>
+          	Maintainer: Daniel Shogbon <ishogbon@gmail.com>
           	Depends: libc6
           	Section: utils
           	Priority: optional
@@ -73,7 +73,7 @@ jobs:
           cat > "${PKG}/lib/systemd/system/flux-agent.service" <<-'EOF'
           	[Unit]
           	Description=Serverless Fabric Agent
-          	Documentation=https://github.com/wraithbytes/serverless-fabric
+          	Documentation=https://github.com/dashn9/serverless-agent
           	After=network.target
 
           	[Service]
