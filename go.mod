@@ -1,6 +1,6 @@
 module agent
 
-go 1.25.4
+go 1.26.0
 
 require (
 	github.com/containerd/cgroups/v3 v3.1.2
