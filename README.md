@@ -38,13 +38,9 @@ agent_id: agent-1
 port: 50051
 max_concurrency: 10
 redis_addr: redis://localhost:6379
-
-# mTLS (required for production)
-# grpc:
-#   ca_cert: /etc/flux-agent/certs/ca.pem
-#   cert:    /etc/flux-agent/certs/agent.pem
-#   key:     /etc/flux-agent/certs/agent.key
 ```
+
+When agents are provisioned by Flux, mTLS certificates are automatically generated and uploaded during SSH bootstrap — no manual cert setup is needed.
 
 ## Run
 

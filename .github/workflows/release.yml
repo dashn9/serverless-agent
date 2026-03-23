@@ -61,7 +61,7 @@ jobs:
           	#!/bin/bash
           	set -e
           	if ! id flux-runner &>/dev/null; then
-          	  useradd --system --no-create-home --shell /usr/sbin/nologin \
+          	  useradd --system --create-home --home-dir /home/flux-runner --shell /bin/bash \
           	    --comment "Serverless Fabric function runner" flux-runner
           	fi
           	systemctl daemon-reload || true
