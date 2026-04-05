@@ -40,7 +40,7 @@ func NewExecutor(workDir string) *Executor {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, handler string, args []string, timeoutSec int32, memoryMB int64, env map[string]string) ([]byte, error) {
+func (e *Executor) Execute(ctx context.Context, handler string, args []string, timeoutSec int32, memoryMB int64, env map[string]string, executionID string) ([]byte, error) {
 	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
@@ -54,6 +54,7 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	// Set environment variables - always inherit and set HOME
 	envList := os.Environ()
 	envList = append(envList, "HOME=/home/flux-runner")
+	envList = append(envList, "FLUX_EXECUTION_ID="+executionID)
 	for k, v := range env {
 		envList = append(envList, fmt.Sprintf("%s=%s", k, v))
 	}

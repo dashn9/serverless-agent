@@ -146,7 +146,7 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	start := time.Now()
 	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, cfg.Handler)
 
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env)
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId)
 	duration := time.Since(start).Milliseconds()
 
 	response := &pb.ExecutionResponse{

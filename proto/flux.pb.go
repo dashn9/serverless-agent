@@ -489,6 +489,7 @@ type ExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FunctionName  string                 `protobuf:"bytes,1,opt,name=function_name,json=functionName,proto3" json:"function_name,omitempty"`
 	Args          []string               `protobuf:"bytes,2,rep,name=args,proto3" json:"args,omitempty"`
+	ExecutionId   string                 `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -535,6 +536,13 @@ func (x *ExecutionRequest) GetArgs() []string {
 		return x.Args
 	}
 	return nil
+}
+
+func (x *ExecutionRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
 }
 
 type ExecutionResponse struct {
@@ -859,10 +867,11 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"A\n" +
 	"\vFunctionAck\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"K\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"n\n" +
 	"\x10ExecutionRequest\x12#\n" +
 	"\rfunction_name\x18\x01 \x01(\tR\ffunctionName\x12\x12\n" +
-	"\x04args\x18\x02 \x03(\tR\x04args\"b\n" +
+	"\x04args\x18\x02 \x03(\tR\x04args\x12!\n" +
+	"\fexecution_id\x18\x03 \x01(\tR\vexecutionId\"b\n" +
 	"\x11ExecutionResponse\x12\x16\n" +
 	"\x06output\x18\x01 \x01(\fR\x06output\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1f\n" +
@@ -891,7 +900,8 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x0eDeployFunction\x12\x17.flux.DeploymentPackage\x1a\x13.flux.DeploymentAck\x12B\n" +
 	"\x0fExecuteFunction\x12\x16.flux.ExecutionRequest\x1a\x17.flux.ExecutionResponse\x12B\n" +
 	"\vHealthCheck\x12\x18.flux.HealthCheckRequest\x1a\x19.flux.HealthCheckResponse\x12E\n" +
-	"\x10ReportNodeStatus\x12\x17.flux.NodeStatusRequest\x1a\x18.flux.NodeStatusResponseB\rZ\vagent/protob\x06proto3"
+	"\x10ReportNodeStatus\x12\x17.flux.NodeStatusRequest\x1a\x18.flux.NodeStatusResponseB\fZ\n" +
+	"flux/protob\x06proto3"
 
 var (
 	file_proto_flux_proto_rawDescOnce sync.Once
