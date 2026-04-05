@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -72,6 +73,15 @@ func (r *RedisMemory) GetFunction(name string) (*FunctionConfig, error) {
 	}
 
 	return &config, nil
+}
+
+func (r *RedisMemory) AppendExecutionLog(executionID, chunk string) error {
+	key := fmt.Sprintf("flux:exec-logs:%s", executionID)
+	pipe := r.client.Pipeline()
+	pipe.Append(r.ctx, key, chunk)
+	pipe.Expire(r.ctx, key, time.Hour)
+	_, err := pipe.Exec(r.ctx)
+	return err
 }
 
 func (r *RedisMemory) GetAllFunctions() ([]*FunctionConfig, error) {

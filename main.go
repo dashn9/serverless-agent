@@ -30,6 +30,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type redisLogWriter struct {
+	mem         *memory.RedisMemory
+	executionID string
+}
+
+func (w *redisLogWriter) Write(p []byte) (int, error) {
+	if err := w.mem.AppendExecutionLog(w.executionID, string(p)); err != nil {
+		log.Printf("[log-writer] failed to append log for %s: %v", w.executionID, err)
+	}
+	return len(p), nil
+}
+
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
 	agentID          string
@@ -146,7 +158,11 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	start := time.Now()
 	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, cfg.Handler)
 
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId)
+	var logWriter io.Writer
+	if req.ExecutionId != "" {
+		logWriter = &redisLogWriter{mem: s.memory, executionID: req.ExecutionId}
+	}
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId, logWriter)
 	duration := time.Since(start).Milliseconds()
 
 	response := &pb.ExecutionResponse{

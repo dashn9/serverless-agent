@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -40,8 +41,11 @@ func NewExecutor(workDir string) *Executor {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, handler string, args []string, timeoutSec int32, memoryMB int64, env map[string]string, executionID string) ([]byte, error) {
-	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+func (e *Executor) Execute(ctx context.Context, handler string, args []string, timeoutSec int32, memoryMB int64, env map[string]string, executionID string, logWriter io.Writer) ([]byte, error) {
+	execCtx, cancel := ctx, context.CancelFunc(func() {})
+	if timeoutSec > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSec)*time.Second)
+	}
 	defer cancel()
 
 	cmd := exec.CommandContext(execCtx, handler, args...)
@@ -60,10 +64,15 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 	}
 	cmd.Env = envList
 
-	// Capture output
+	// Capture output — tee to logWriter if provided for live log streaming
 	var outputBuf bytes.Buffer
-	cmd.Stdout = &outputBuf
-	cmd.Stderr = &outputBuf
+	if logWriter != nil {
+		cmd.Stdout = io.MultiWriter(&outputBuf, logWriter)
+		cmd.Stderr = io.MultiWriter(&outputBuf, logWriter)
+	} else {
+		cmd.Stdout = &outputBuf
+		cmd.Stderr = &outputBuf
+	}
 
 	// Run as flux-runner user
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -123,7 +132,7 @@ func (e *Executor) Execute(ctx context.Context, handler string, args []string, t
 
 	// Check if timeout occurred
 	if execCtx.Err() == context.DeadlineExceeded {
-		return output, fmt.Errorf("execution timed out after %d seconds", timeoutSec)
+		return output, fmt.Errorf("execution timed out after %ds", timeoutSec)
 	}
 
 	// Return error for any non-zero exit
