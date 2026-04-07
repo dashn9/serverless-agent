@@ -15,6 +15,7 @@ service AgentService {
   rpc RegisterFunction(FunctionConfig) returns (FunctionAck);
   rpc DeployFunction(DeploymentPackage) returns (DeploymentAck);
   rpc ExecuteFunction(ExecutionRequest) returns (ExecutionResponse);
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
   rpc ReportNodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
 }
@@ -69,6 +70,16 @@ message ExecutionRequest {
   string function_name = 1;
   repeated string args = 2;
   string execution_id = 3;
+  bool async = 4;
+}
+
+message CancelExecutionRequest {
+  string execution_id = 1;
+}
+
+message CancelExecutionResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message ExecutionResponse {

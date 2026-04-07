@@ -75,13 +75,33 @@ func (r *RedisMemory) GetFunction(name string) (*FunctionConfig, error) {
 	return &config, nil
 }
 
-func (r *RedisMemory) AppendExecutionLog(executionID, chunk string) error {
-	key := fmt.Sprintf("flux:exec-logs:%s", executionID)
-	pipe := r.client.Pipeline()
-	pipe.Append(r.ctx, key, chunk)
-	pipe.Expire(r.ctx, key, time.Hour)
-	_, err := pipe.Exec(r.ctx)
-	return err
+func (r *RedisMemory) SaveExecution(executionID, agentID, functionName, status, errMsg string, output []byte, durationMs int64, startedAt time.Time, statusAt *time.Time) error {
+	type record struct {
+		ExecutionID  string     `json:"execution_id"`
+		AgentID      string     `json:"agent_id"`
+		FunctionName string     `json:"function_name"`
+		Status       string     `json:"status"`
+		Output       string     `json:"output,omitempty"`
+		Error        string     `json:"error,omitempty"`
+		DurationMs   int64      `json:"duration_ms,omitempty"`
+		StartedAt    time.Time  `json:"started_at"`
+		StatusAt     *time.Time `json:"status_at,omitempty"`
+	}
+	data, err := json.Marshal(record{
+		ExecutionID:  executionID,
+		AgentID:      agentID,
+		FunctionName: functionName,
+		Status:       status,
+		Output:       string(output),
+		Error:        errMsg,
+		DurationMs:   durationMs,
+		StartedAt:    startedAt,
+		StatusAt:     statusAt,
+	})
+	if err != nil {
+		return err
+	}
+	return r.client.Set(r.ctx, fmt.Sprintf("flux:exec:%s", executionID), data, time.Hour).Err()
 }
 
 func (r *RedisMemory) GetAllFunctions() ([]*FunctionConfig, error) {

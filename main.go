@@ -30,14 +30,25 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type redisLogWriter struct {
-	mem         *memory.RedisMemory
-	executionID string
+type executionLogWriter struct {
+	mem          *memory.RedisMemory
+	executionID  string
+	agentID      string
+	functionName string
+	startedAt    time.Time
+	mu           sync.Mutex
+	buf          []byte
 }
 
-func (w *redisLogWriter) Write(p []byte) (int, error) {
-	if err := w.mem.AppendExecutionLog(w.executionID, string(p)); err != nil {
-		log.Printf("[log-writer] failed to append log for %s: %v", w.executionID, err)
+func (w *executionLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	w.buf = append(w.buf, p...)
+	snapshot := make([]byte, len(w.buf))
+	copy(snapshot, w.buf)
+	w.mu.Unlock()
+
+	if err := w.mem.SaveExecution(w.executionID, w.agentID, w.functionName, "running", "", snapshot, 0, w.startedAt, nil); err != nil {
+		log.Printf("[exec-writer] failed to save execution log for %s: %v", w.executionID, err)
 	}
 	return len(p), nil
 }
@@ -50,6 +61,9 @@ type AgentServer struct {
 	executor         *executor.Executor
 	memory           *memory.RedisMemory
 	monitor          *monitor.NodeMonitor
+
+	cancelMu sync.Mutex
+	cancels  map[string]context.CancelFunc
 }
 
 func getAppsDir() string {
@@ -68,6 +82,7 @@ func NewAgentServer(agentID string, mem *memory.RedisMemory, mon *monitor.NodeMo
 		executor:         executor.NewExecutor(getAppsDir()),
 		memory:           mem,
 		monitor:          mon,
+		cancels:          make(map[string]context.CancelFunc),
 	}
 }
 
@@ -130,7 +145,6 @@ func (s *AgentServer) DeployFunction(ctx context.Context, req *pb.DeploymentPack
 }
 
 func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequest) (*pb.ExecutionResponse, error) {
-	// First check if function exists and get its config
 	cfg, err := s.memory.GetFunction(req.FunctionName)
 	if err != nil || cfg == nil {
 		log.Printf("Execution failed: function %s not found", req.FunctionName)
@@ -146,22 +160,82 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 	s.funcActiveCounts[req.FunctionName]++
 	s.mu.Unlock()
 
+	if req.Async {
+		execCtx, cancel := context.WithCancel(context.Background())
+		s.cancelMu.Lock()
+		s.cancels[req.ExecutionId] = cancel
+		s.cancelMu.Unlock()
+
+		go s.runExecution(execCtx, cancel, req, cfg)
+		return &pb.ExecutionResponse{}, nil
+	}
+
 	defer func() {
 		s.mu.Lock()
 		s.funcActiveCounts[req.FunctionName]--
 		s.mu.Unlock()
 	}()
 
+	return s.runExecutionSync(ctx, req, cfg)
+}
+
+func (s *AgentServer) runExecution(ctx context.Context, cancel context.CancelFunc, req *pb.ExecutionRequest, cfg *memory.FunctionConfig) {
+	defer func() {
+		cancel()
+		s.cancelMu.Lock()
+		delete(s.cancels, req.ExecutionId)
+		s.cancelMu.Unlock()
+		s.mu.Lock()
+		s.funcActiveCounts[req.FunctionName]--
+		s.mu.Unlock()
+	}()
+
+	now := time.Now()
+	s.memory.SaveExecution(req.ExecutionId, s.agentID, req.FunctionName, "running", "", nil, 0, now, nil)
+
+	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, cfg.Handler)
+	logWriter := &executionLogWriter{
+		mem:          s.memory,
+		executionID:  req.ExecutionId,
+		agentID:      s.agentID,
+		functionName: req.FunctionName,
+		startedAt:    now,
+	}
+
+	log.Printf("Executing async function: %s | execution_id: %s | timeout: %ds | memory: %dMB | args: %v",
+		req.FunctionName, req.ExecutionId, cfg.Timeout, cfg.Resources.Memory, req.Args)
+
+	start := time.Now()
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId, logWriter)
+	duration := time.Since(start).Milliseconds()
+	statusAt := time.Now()
+
+	status := "success"
+	errMsg := ""
+	if ctx.Err() != nil {
+		status = "cancelled"
+		errMsg = "execution cancelled"
+		log.Printf("Async execution cancelled: %s | execution_id: %s", req.FunctionName, req.ExecutionId)
+	} else if execErr != nil {
+		status = "failed"
+		errMsg = execErr.Error()
+		log.Printf("Async execution failed: %s | execution_id: %s | duration: %dms | error: %s", req.FunctionName, req.ExecutionId, duration, errMsg)
+	} else {
+		log.Printf("Async execution completed: %s | execution_id: %s | duration: %dms", req.FunctionName, req.ExecutionId, duration)
+	}
+
+	s.memory.SaveExecution(req.ExecutionId, s.agentID, req.FunctionName, status, errMsg, output, duration, now, &statusAt)
+}
+
+func (s *AgentServer) runExecutionSync(ctx context.Context, req *pb.ExecutionRequest, cfg *memory.FunctionConfig) (*pb.ExecutionResponse, error) {
 	log.Printf("Executing function: %s | timeout: %ds | memory: %dMB | args: %v",
 		req.FunctionName, cfg.Timeout, cfg.Resources.Memory, req.Args)
 
-	start := time.Now()
 	handlerPath := filepath.Join(getAppsDir(), req.FunctionName, cfg.Handler)
 
 	var logWriter io.Writer
-	if req.ExecutionId != "" {
-		logWriter = &redisLogWriter{mem: s.memory, executionID: req.ExecutionId}
-	}
+
+	start := time.Now()
 	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId, logWriter)
 	duration := time.Since(start).Milliseconds()
 
@@ -169,15 +243,27 @@ func (s *AgentServer) ExecuteFunction(ctx context.Context, req *pb.ExecutionRequ
 		Output:     output,
 		DurationMs: duration,
 	}
-
 	if execErr != nil {
 		response.Error = execErr.Error()
 		log.Printf("Execution failed: %s | duration: %dms | error: %s", req.FunctionName, duration, execErr.Error())
 	} else {
 		log.Printf("Execution completed: %s | duration: %dms", req.FunctionName, duration)
 	}
-
 	return response, nil
+}
+
+func (s *AgentServer) CancelExecution(ctx context.Context, req *pb.CancelExecutionRequest) (*pb.CancelExecutionResponse, error) {
+	s.cancelMu.Lock()
+	cancel, ok := s.cancels[req.ExecutionId]
+	s.cancelMu.Unlock()
+
+	if !ok {
+		return &pb.CancelExecutionResponse{Success: false, Message: "execution not found or already completed"}, nil
+	}
+
+	cancel()
+	log.Printf("Execution cancelled: %s", req.ExecutionId)
+	return &pb.CancelExecutionResponse{Success: true}, nil
 }
 
 func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
