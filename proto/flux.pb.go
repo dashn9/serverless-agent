@@ -709,6 +709,102 @@ func (x *ExecutionResponse) GetDurationMs() int64 {
 	return 0
 }
 
+type GetExecutionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExecutionRequest) Reset() {
+	*x = GetExecutionRequest{}
+	mi := &file_proto_flux_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExecutionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExecutionRequest) ProtoMessage() {}
+
+func (x *GetExecutionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_flux_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExecutionRequest.ProtoReflect.Descriptor instead.
+func (*GetExecutionRequest) Descriptor() ([]byte, []int) {
+	return file_proto_flux_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetExecutionRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+type GetExecutionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Found         bool                   `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"` // JSON-encoded ExecutionRecord
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExecutionResponse) Reset() {
+	*x = GetExecutionResponse{}
+	mi := &file_proto_flux_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExecutionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExecutionResponse) ProtoMessage() {}
+
+func (x *GetExecutionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_flux_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExecutionResponse.ProtoReflect.Descriptor instead.
+func (*GetExecutionResponse) Descriptor() ([]byte, []int) {
+	return file_proto_flux_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetExecutionResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *GetExecutionResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 type HealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -717,7 +813,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_proto_flux_proto_msgTypes[12]
+	mi := &file_proto_flux_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -729,7 +825,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_flux_proto_msgTypes[12]
+	mi := &file_proto_flux_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -742,7 +838,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_proto_flux_proto_rawDescGZIP(), []int{12}
+	return file_proto_flux_proto_rawDescGZIP(), []int{14}
 }
 
 type HealthCheckResponse struct {
@@ -755,7 +851,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_proto_flux_proto_msgTypes[13]
+	mi := &file_proto_flux_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -767,7 +863,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_flux_proto_msgTypes[13]
+	mi := &file_proto_flux_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +876,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_flux_proto_rawDescGZIP(), []int{13}
+	return file_proto_flux_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *HealthCheckResponse) GetHealthy() bool {
@@ -806,7 +902,7 @@ type NodeStatusRequest struct {
 
 func (x *NodeStatusRequest) Reset() {
 	*x = NodeStatusRequest{}
-	mi := &file_proto_flux_proto_msgTypes[14]
+	mi := &file_proto_flux_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -818,7 +914,7 @@ func (x *NodeStatusRequest) String() string {
 func (*NodeStatusRequest) ProtoMessage() {}
 
 func (x *NodeStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_flux_proto_msgTypes[14]
+	mi := &file_proto_flux_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -831,7 +927,7 @@ func (x *NodeStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeStatusRequest.ProtoReflect.Descriptor instead.
 func (*NodeStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_flux_proto_rawDescGZIP(), []int{14}
+	return file_proto_flux_proto_rawDescGZIP(), []int{16}
 }
 
 type NodeStatusResponse struct {
@@ -850,7 +946,7 @@ type NodeStatusResponse struct {
 
 func (x *NodeStatusResponse) Reset() {
 	*x = NodeStatusResponse{}
-	mi := &file_proto_flux_proto_msgTypes[15]
+	mi := &file_proto_flux_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -862,7 +958,7 @@ func (x *NodeStatusResponse) String() string {
 func (*NodeStatusResponse) ProtoMessage() {}
 
 func (x *NodeStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_flux_proto_msgTypes[15]
+	mi := &file_proto_flux_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -875,7 +971,7 @@ func (x *NodeStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeStatusResponse.ProtoReflect.Descriptor instead.
 func (*NodeStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_flux_proto_rawDescGZIP(), []int{15}
+	return file_proto_flux_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *NodeStatusResponse) GetAgentId() string {
@@ -986,7 +1082,12 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x06output\x18\x01 \x01(\fR\x06output\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1f\n" +
 	"\vduration_ms\x18\x03 \x01(\x03R\n" +
-	"durationMs\"\x14\n" +
+	"durationMs\"8\n" +
+	"\x13GetExecutionRequest\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\"@\n" +
+	"\x14GetExecutionResponse\x12\x14\n" +
+	"\x05found\x18\x01 \x01(\bR\x05found\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\x14\n" +
 	"\x12HealthCheckRequest\"I\n" +
 	"\x13HealthCheckResponse\x12\x18\n" +
 	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12\x18\n" +
@@ -1004,12 +1105,13 @@ const file_proto_flux_proto_rawDesc = "" +
 	"\x0euptime_seconds\x18\b \x01(\x03R\ruptimeSeconds2\x95\x01\n" +
 	"\vFluxService\x12H\n" +
 	"\rRegisterAgent\x12\x1a.flux.RegisterAgentRequest\x1a\x1b.flux.RegisterAgentResponse\x12<\n" +
-	"\tHeartbeat\x12\x16.flux.HeartbeatRequest\x1a\x17.flux.HeartbeatResponse2\xaa\x03\n" +
+	"\tHeartbeat\x12\x16.flux.HeartbeatRequest\x1a\x17.flux.HeartbeatResponse2\xf1\x03\n" +
 	"\fAgentService\x12;\n" +
 	"\x10RegisterFunction\x12\x14.flux.FunctionConfig\x1a\x11.flux.FunctionAck\x12>\n" +
 	"\x0eDeployFunction\x12\x17.flux.DeploymentPackage\x1a\x13.flux.DeploymentAck\x12B\n" +
 	"\x0fExecuteFunction\x12\x16.flux.ExecutionRequest\x1a\x17.flux.ExecutionResponse\x12N\n" +
-	"\x0fCancelExecution\x12\x1c.flux.CancelExecutionRequest\x1a\x1d.flux.CancelExecutionResponse\x12B\n" +
+	"\x0fCancelExecution\x12\x1c.flux.CancelExecutionRequest\x1a\x1d.flux.CancelExecutionResponse\x12E\n" +
+	"\fGetExecution\x12\x19.flux.GetExecutionRequest\x1a\x1a.flux.GetExecutionResponse\x12B\n" +
 	"\vHealthCheck\x12\x18.flux.HealthCheckRequest\x1a\x19.flux.HealthCheckResponse\x12E\n" +
 	"\x10ReportNodeStatus\x12\x17.flux.NodeStatusRequest\x1a\x18.flux.NodeStatusResponseB\fZ\n" +
 	"flux/protob\x06proto3"
@@ -1026,7 +1128,7 @@ func file_proto_flux_proto_rawDescGZIP() []byte {
 	return file_proto_flux_proto_rawDescData
 }
 
-var file_proto_flux_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_proto_flux_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_proto_flux_proto_goTypes = []any{
 	(*RegisterAgentRequest)(nil),    // 0: flux.RegisterAgentRequest
 	(*RegisterAgentResponse)(nil),   // 1: flux.RegisterAgentResponse
@@ -1040,33 +1142,37 @@ var file_proto_flux_proto_goTypes = []any{
 	(*CancelExecutionRequest)(nil),  // 9: flux.CancelExecutionRequest
 	(*CancelExecutionResponse)(nil), // 10: flux.CancelExecutionResponse
 	(*ExecutionResponse)(nil),       // 11: flux.ExecutionResponse
-	(*HealthCheckRequest)(nil),      // 12: flux.HealthCheckRequest
-	(*HealthCheckResponse)(nil),     // 13: flux.HealthCheckResponse
-	(*NodeStatusRequest)(nil),       // 14: flux.NodeStatusRequest
-	(*NodeStatusResponse)(nil),      // 15: flux.NodeStatusResponse
-	nil,                             // 16: flux.FunctionConfig.EnvEntry
+	(*GetExecutionRequest)(nil),     // 12: flux.GetExecutionRequest
+	(*GetExecutionResponse)(nil),    // 13: flux.GetExecutionResponse
+	(*HealthCheckRequest)(nil),      // 14: flux.HealthCheckRequest
+	(*HealthCheckResponse)(nil),     // 15: flux.HealthCheckResponse
+	(*NodeStatusRequest)(nil),       // 16: flux.NodeStatusRequest
+	(*NodeStatusResponse)(nil),      // 17: flux.NodeStatusResponse
+	nil,                             // 18: flux.FunctionConfig.EnvEntry
 }
 var file_proto_flux_proto_depIdxs = []int32{
 	6,  // 0: flux.DeploymentPackage.config:type_name -> flux.FunctionConfig
-	16, // 1: flux.FunctionConfig.env:type_name -> flux.FunctionConfig.EnvEntry
+	18, // 1: flux.FunctionConfig.env:type_name -> flux.FunctionConfig.EnvEntry
 	0,  // 2: flux.FluxService.RegisterAgent:input_type -> flux.RegisterAgentRequest
 	2,  // 3: flux.FluxService.Heartbeat:input_type -> flux.HeartbeatRequest
 	6,  // 4: flux.AgentService.RegisterFunction:input_type -> flux.FunctionConfig
 	4,  // 5: flux.AgentService.DeployFunction:input_type -> flux.DeploymentPackage
 	8,  // 6: flux.AgentService.ExecuteFunction:input_type -> flux.ExecutionRequest
 	9,  // 7: flux.AgentService.CancelExecution:input_type -> flux.CancelExecutionRequest
-	12, // 8: flux.AgentService.HealthCheck:input_type -> flux.HealthCheckRequest
-	14, // 9: flux.AgentService.ReportNodeStatus:input_type -> flux.NodeStatusRequest
-	1,  // 10: flux.FluxService.RegisterAgent:output_type -> flux.RegisterAgentResponse
-	3,  // 11: flux.FluxService.Heartbeat:output_type -> flux.HeartbeatResponse
-	7,  // 12: flux.AgentService.RegisterFunction:output_type -> flux.FunctionAck
-	5,  // 13: flux.AgentService.DeployFunction:output_type -> flux.DeploymentAck
-	11, // 14: flux.AgentService.ExecuteFunction:output_type -> flux.ExecutionResponse
-	10, // 15: flux.AgentService.CancelExecution:output_type -> flux.CancelExecutionResponse
-	13, // 16: flux.AgentService.HealthCheck:output_type -> flux.HealthCheckResponse
-	15, // 17: flux.AgentService.ReportNodeStatus:output_type -> flux.NodeStatusResponse
-	10, // [10:18] is the sub-list for method output_type
-	2,  // [2:10] is the sub-list for method input_type
+	12, // 8: flux.AgentService.GetExecution:input_type -> flux.GetExecutionRequest
+	14, // 9: flux.AgentService.HealthCheck:input_type -> flux.HealthCheckRequest
+	16, // 10: flux.AgentService.ReportNodeStatus:input_type -> flux.NodeStatusRequest
+	1,  // 11: flux.FluxService.RegisterAgent:output_type -> flux.RegisterAgentResponse
+	3,  // 12: flux.FluxService.Heartbeat:output_type -> flux.HeartbeatResponse
+	7,  // 13: flux.AgentService.RegisterFunction:output_type -> flux.FunctionAck
+	5,  // 14: flux.AgentService.DeployFunction:output_type -> flux.DeploymentAck
+	11, // 15: flux.AgentService.ExecuteFunction:output_type -> flux.ExecutionResponse
+	10, // 16: flux.AgentService.CancelExecution:output_type -> flux.CancelExecutionResponse
+	13, // 17: flux.AgentService.GetExecution:output_type -> flux.GetExecutionResponse
+	15, // 18: flux.AgentService.HealthCheck:output_type -> flux.HealthCheckResponse
+	17, // 19: flux.AgentService.ReportNodeStatus:output_type -> flux.NodeStatusResponse
+	11, // [11:20] is the sub-list for method output_type
+	2,  // [2:11] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -1083,7 +1189,7 @@ func file_proto_flux_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_flux_proto_rawDesc), len(file_proto_flux_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

@@ -167,6 +167,7 @@ const (
 	AgentService_DeployFunction_FullMethodName   = "/flux.AgentService/DeployFunction"
 	AgentService_ExecuteFunction_FullMethodName  = "/flux.AgentService/ExecuteFunction"
 	AgentService_CancelExecution_FullMethodName  = "/flux.AgentService/CancelExecution"
+	AgentService_GetExecution_FullMethodName     = "/flux.AgentService/GetExecution"
 	AgentService_HealthCheck_FullMethodName      = "/flux.AgentService/HealthCheck"
 	AgentService_ReportNodeStatus_FullMethodName = "/flux.AgentService/ReportNodeStatus"
 )
@@ -181,6 +182,7 @@ type AgentServiceClient interface {
 	DeployFunction(ctx context.Context, in *DeploymentPackage, opts ...grpc.CallOption) (*DeploymentAck, error)
 	ExecuteFunction(ctx context.Context, in *ExecutionRequest, opts ...grpc.CallOption) (*ExecutionResponse, error)
 	CancelExecution(ctx context.Context, in *CancelExecutionRequest, opts ...grpc.CallOption) (*CancelExecutionResponse, error)
+	GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*GetExecutionResponse, error)
 	HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 	ReportNodeStatus(ctx context.Context, in *NodeStatusRequest, opts ...grpc.CallOption) (*NodeStatusResponse, error)
 }
@@ -233,6 +235,16 @@ func (c *agentServiceClient) CancelExecution(ctx context.Context, in *CancelExec
 	return out, nil
 }
 
+func (c *agentServiceClient) GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*GetExecutionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetExecutionResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) HealthCheck(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(HealthCheckResponse)
@@ -263,6 +275,7 @@ type AgentServiceServer interface {
 	DeployFunction(context.Context, *DeploymentPackage) (*DeploymentAck, error)
 	ExecuteFunction(context.Context, *ExecutionRequest) (*ExecutionResponse, error)
 	CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error)
+	GetExecution(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error)
 	HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
 	ReportNodeStatus(context.Context, *NodeStatusRequest) (*NodeStatusResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
@@ -286,6 +299,9 @@ func (UnimplementedAgentServiceServer) ExecuteFunction(context.Context, *Executi
 }
 func (UnimplementedAgentServiceServer) CancelExecution(context.Context, *CancelExecutionRequest) (*CancelExecutionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelExecution not implemented")
+}
+func (UnimplementedAgentServiceServer) GetExecution(context.Context, *GetExecutionRequest) (*GetExecutionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetExecution not implemented")
 }
 func (UnimplementedAgentServiceServer) HealthCheck(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method HealthCheck not implemented")
@@ -386,6 +402,24 @@ func _AgentService_CancelExecution_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_GetExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetExecution(ctx, req.(*GetExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_HealthCheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthCheckRequest)
 	if err := dec(in); err != nil {
@@ -444,6 +478,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelExecution",
 			Handler:    _AgentService_CancelExecution_Handler,
+		},
+		{
+			MethodName: "GetExecution",
+			Handler:    _AgentService_GetExecution_Handler,
 		},
 		{
 			MethodName: "HealthCheck",
