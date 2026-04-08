@@ -104,6 +104,17 @@ func (r *RedisMemory) SaveExecution(executionID, agentID, functionName, status, 
 	return r.client.Set(r.ctx, fmt.Sprintf("flux:exec:%s", executionID), data, time.Hour).Err()
 }
 
+func (r *RedisMemory) GetExecution(executionID string) ([]byte, error) {
+	data, err := r.client.Get(r.ctx, fmt.Sprintf("flux:exec:%s", executionID)).Bytes()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
 func (r *RedisMemory) GetAllFunctions() ([]*FunctionConfig, error) {
 	keys, err := r.client.Keys(r.ctx, "agent:function:*").Result()
 	if err != nil {

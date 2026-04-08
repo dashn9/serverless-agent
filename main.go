@@ -266,6 +266,17 @@ func (s *AgentServer) CancelExecution(ctx context.Context, req *pb.CancelExecuti
 	return &pb.CancelExecutionResponse{Success: true}, nil
 }
 
+func (s *AgentServer) GetExecution(ctx context.Context, req *pb.GetExecutionRequest) (*pb.GetExecutionResponse, error) {
+	data, err := s.memory.GetExecution(req.ExecutionId)
+	if err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return &pb.GetExecutionResponse{Found: false}, nil
+	}
+	return &pb.GetExecutionResponse{Found: true, Data: data}, nil
+}
+
 func (s *AgentServer) HealthCheck(ctx context.Context, req *pb.HealthCheckRequest) (*pb.HealthCheckResponse, error) {
 	return &pb.HealthCheckResponse{
 		Healthy: true,

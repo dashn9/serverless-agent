@@ -16,6 +16,7 @@ service AgentService {
   rpc DeployFunction(DeploymentPackage) returns (DeploymentAck);
   rpc ExecuteFunction(ExecutionRequest) returns (ExecutionResponse);
   rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+  rpc GetExecution(GetExecutionRequest) returns (GetExecutionResponse);
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
   rpc ReportNodeStatus(NodeStatusRequest) returns (NodeStatusResponse);
 }
@@ -86,6 +87,15 @@ message ExecutionResponse {
   bytes output = 1;
   string error = 2;
   int64 duration_ms = 3;
+}
+
+message GetExecutionRequest {
+  string execution_id = 1;
+}
+
+message GetExecutionResponse {
+  bool found = 1;
+  bytes data = 2; // JSON-encoded ExecutionRecord
 }
 
 message HealthCheckRequest {
