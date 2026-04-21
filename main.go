@@ -1,5 +1,3 @@
-//go:build linux
-
 package main
 
 import (
@@ -12,10 +10,10 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +54,8 @@ func (w *executionLogWriter) Write(p []byte) (int, error) {
 type AgentServer struct {
 	pb.UnimplementedAgentServiceServer
 	agentID          string
+	nodePrivateIP    string
+	nodePublicIP     string
 	funcActiveCounts map[string]int32
 	mu               sync.Mutex
 	executor         *executor.Executor
@@ -66,18 +66,11 @@ type AgentServer struct {
 	cancels  map[string]context.CancelFunc
 }
 
-func getAppsDir() string {
-	u, err := user.Lookup("flux-runner")
-	if err != nil {
-		log.Printf("Failed to lookup flux-runner: %v, using ./apps", err)
-		return "./apps"
-	}
-	return filepath.Join(u.HomeDir, "apps")
-}
-
-func NewAgentServer(agentID string, mem *memory.RedisMemory, mon *monitor.NodeMonitor) *AgentServer {
+func NewAgentServer(agentID, nodePrivateIP, nodePublicIP string, mem *memory.RedisMemory, mon *monitor.NodeMonitor) *AgentServer {
 	return &AgentServer{
 		agentID:          agentID,
+		nodePrivateIP:    nodePrivateIP,
+		nodePublicIP:     nodePublicIP,
 		funcActiveCounts: make(map[string]int32),
 		executor:         executor.NewExecutor(getAppsDir()),
 		memory:           mem,
@@ -206,7 +199,7 @@ func (s *AgentServer) runExecution(ctx context.Context, cancel context.CancelFun
 		req.FunctionName, req.ExecutionId, cfg.Timeout, cfg.Resources.Memory, req.Args)
 
 	start := time.Now()
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId, logWriter)
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, s.mergeEnv(cfg.Env), req.ExecutionId, logWriter)
 	duration := time.Since(start).Milliseconds()
 	statusAt := time.Now()
 
@@ -227,6 +220,21 @@ func (s *AgentServer) runExecution(ctx context.Context, cancel context.CancelFun
 	s.memory.SaveExecution(req.ExecutionId, s.agentID, req.FunctionName, status, errMsg, output, duration, now, &statusAt)
 }
 
+// mergeEnv returns a copy of env with FLUX_NODE_PRIVATE_IP and FLUX_NODE_PUBLIC_IP injected.
+func (s *AgentServer) mergeEnv(env map[string]string) map[string]string {
+	merged := make(map[string]string, len(env)+2)
+	for k, v := range env {
+		merged[k] = v
+	}
+	if s.nodePrivateIP != "" {
+		merged["FLUX_NODE_PRIVATE_IP"] = s.nodePrivateIP
+	}
+	if s.nodePublicIP != "" {
+		merged["FLUX_NODE_PUBLIC_IP"] = s.nodePublicIP
+	}
+	return merged
+}
+
 func (s *AgentServer) runExecutionSync(ctx context.Context, req *pb.ExecutionRequest, cfg *memory.FunctionConfig) (*pb.ExecutionResponse, error) {
 	log.Printf("Executing function: %s | timeout: %ds | memory: %dMB | args: %v",
 		req.FunctionName, cfg.Timeout, cfg.Resources.Memory, req.Args)
@@ -236,7 +244,7 @@ func (s *AgentServer) runExecutionSync(ctx context.Context, req *pb.ExecutionReq
 	var logWriter io.Writer
 
 	start := time.Now()
-	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, cfg.Env, req.ExecutionId, logWriter)
+	output, execErr := s.executor.Execute(ctx, handlerPath, req.Args, cfg.Timeout, cfg.Resources.Memory, s.mergeEnv(cfg.Env), req.ExecutionId, logWriter)
 	duration := time.Since(start).Milliseconds()
 
 	response := &pb.ExecutionResponse{
@@ -303,22 +311,6 @@ func (s *AgentServer) ReportNodeStatus(ctx context.Context, req *pb.NodeStatusRe
 		ActiveTasks:   activeTasks,
 		UptimeSeconds: snap.UptimeSec,
 	}, nil
-}
-
-func chownToFluxRunner(path string) error {
-	u, err := user.Lookup("flux-runner")
-	if err != nil {
-		return err
-	}
-	uid, _ := strconv.ParseInt(u.Uid, 10, 32)
-	gid, _ := strconv.ParseInt(u.Gid, 10, 32)
-
-	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		return os.Chown(name, int(uid), int(gid))
-	})
 }
 
 func makeExecutableRecursive(path string) error {
@@ -401,6 +393,47 @@ func extractZip(data []byte, destDir string) error {
 	return nil
 }
 
+// detectPrivateIP returns the first non-loopback IPv4 address found on any
+// network interface. Returns an empty string if none is found.
+func detectPrivateIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+		if ip == nil || ip.IsLoopback() {
+			continue
+		}
+		if ip4 := ip.To4(); ip4 != nil {
+			return ip4.String()
+		}
+	}
+	return ""
+}
+
+// detectPublicIP queries a public IP echo service and returns the result.
+// Returns an empty string if the request fails or times out.
+func detectPublicIP() string {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://api.ipify.org")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(body))
+}
+
 func main() {
 	configPath := os.Getenv("AGENT_CONFIG")
 	if configPath == "" {
@@ -413,6 +446,23 @@ func main() {
 		log.Fatalf("Failed to load agent config: %v", err)
 	}
 
+	// Auto-detect IPs if not set in config.
+	if agentConfig.Network == nil {
+		agentConfig.Network = &config.NetworkConfig{}
+	}
+	if agentConfig.Network.NodePrivateIP == "" {
+		agentConfig.Network.NodePrivateIP = detectPrivateIP()
+		if agentConfig.Network.NodePrivateIP != "" {
+			log.Printf("Auto-detected private IP: %s", agentConfig.Network.NodePrivateIP)
+		}
+	}
+	if agentConfig.Network.NodePublicIP == "" {
+		agentConfig.Network.NodePublicIP = detectPublicIP()
+		if agentConfig.Network.NodePublicIP != "" {
+			log.Printf("Auto-detected public IP: %s", agentConfig.Network.NodePublicIP)
+		}
+	}
+
 	// Initialize Redis memory
 	mem := memory.NewRedisMemory(agentConfig.RedisAddr)
 	defer mem.Close()
@@ -422,7 +472,7 @@ func main() {
 	mon := monitor.NewNodeMonitor(5 * time.Second)
 	log.Printf("Node monitor started (sampling every 5s)")
 
-	agent := NewAgentServer(agentConfig.AgentID, mem, mon)
+	agent := NewAgentServer(agentConfig.AgentID, agentConfig.Network.NodePrivateIP, agentConfig.Network.NodePublicIP, mem, mon)
 
 	// Start gRPC server
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", agentConfig.Port))

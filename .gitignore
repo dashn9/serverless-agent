@@ -1,6 +1,7 @@
 agent.exe
 agent-linux
 agent.yaml
+apps/
 
 # Binaries for programs and plugins
 *.exe

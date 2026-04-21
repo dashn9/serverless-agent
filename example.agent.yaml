@@ -2,10 +2,18 @@ agent_id: agent-1
 port: "50052"
 redis_addr: localhost:6379
 
+# network exposes node IPs as environment variables in every execution:
+#   FLUX_NODE_PRIVATE_IP  — auto-detected from network interfaces if omitted
+#   FLUX_NODE_PUBLIC_IP   — queried from api.ipify.org if omitted
+# Override either if auto-detection picks the wrong address.
+# network:
+#   node_private_ip: 10.0.0.5
+#   node_public_ip: 1.2.3.4
+
 # mTLS — must match the TLS config in flux.yaml when enabled.
 # The agent presents agent.pem to Flux and verifies Flux's cert against ca.pem.
 # tls:
 #   enabled: true
-#   ca_cert: /opt/flux-agent/tls/ca.pem
-#   cert:    /opt/flux-agent/tls/agent.pem
-#   key:     /opt/flux-agent/tls/agent-key.pem
+#   ca_cert:   /opt/flux-agent/tls/ca.pem
+#   cert_file: /opt/flux-agent/tls/agent.pem
+#   key_file:  /opt/flux-agent/tls/agent-key.pem
