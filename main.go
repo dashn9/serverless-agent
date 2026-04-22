@@ -330,12 +330,12 @@ func makeExecutableRecursive(path string) error {
 func loadTLSCredentials(tlsCfg *config.TLSConfig) (credentials.TransportCredentials, error) {
 	cert, err := tls.LoadX509KeyPair(tlsCfg.CertFile, tlsCfg.KeyFile)
 	if err != nil {
-		return nil, fmt.Errorf("load agent cert/key: %w", err)
+		return nil, fmt.Errorf("load agent cert/key (cert=%s key=%s): %w", tlsCfg.CertFile, tlsCfg.KeyFile, err)
 	}
 
 	caData, err := os.ReadFile(tlsCfg.CACert)
 	if err != nil {
-		return nil, fmt.Errorf("read CA cert: %w", err)
+		return nil, fmt.Errorf("read CA cert (%s): %w", tlsCfg.CACert, err)
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(caData) {

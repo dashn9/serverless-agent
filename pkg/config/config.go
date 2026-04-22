@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -36,10 +37,28 @@ func LoadAgentConfig(path string) (*AgentConfig, error) {
 		return nil, err
 	}
 
-	var config AgentConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	var cfg AgentConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
-	return &config, nil
+	// Resolve TLS cert paths relative to the config file so relative paths
+	// in agent.yaml work correctly regardless of the process working directory.
+	if cfg.TLS != nil && cfg.TLS.Enabled {
+		base := filepath.Dir(path)
+		cfg.TLS.CACert = resolveRelative(base, cfg.TLS.CACert)
+		cfg.TLS.CertFile = resolveRelative(base, cfg.TLS.CertFile)
+		cfg.TLS.KeyFile = resolveRelative(base, cfg.TLS.KeyFile)
+	}
+
+	return &cfg, nil
+}
+
+// resolveRelative returns path as-is if it is already absolute, otherwise
+// joins it with base.
+func resolveRelative(base, path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(base, path)
 }
