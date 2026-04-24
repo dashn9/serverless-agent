@@ -43,6 +43,10 @@ sudo install -Dm755 flux-agent /usr/local/bin/flux-agent
 go build -o flux-agent.exe .
 ```
 
+**Windows release artifact:**
+
+Download `flux-agent_<version>_windows_amd64.zip` from GitHub Releases, extract it, copy `agent.yaml.example` to `agent.yaml`, then run `flux-agent.exe`.
+
 ## Configuration
 
 See [`example.agent.yaml`](example.agent.yaml) for a fully annotated reference. Minimal config:

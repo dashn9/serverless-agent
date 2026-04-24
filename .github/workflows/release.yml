@@ -1,4 +1,4 @@
-name: Release .deb Package
+name: Release Packages
 
 on:
   # push:
@@ -97,3 +97,45 @@ jobs:
           name: "flux-agent v${{ env.VERSION }}"
           generate_release_notes: true
           files: "*.deb"
+
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      PKG: flux-agent_${{ inputs.version }}_windows_amd64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Windows binary
+        shell: powershell
+        run: |
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build -ldflags="-s -w" -o flux-agent.exe .
+
+      - name: Package Windows artifact
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path $env:PKG | Out-Null
+          Copy-Item flux-agent.exe "$env:PKG\flux-agent.exe"
+          Copy-Item example.agent.yaml "$env:PKG\agent.yaml.example"
+          Compress-Archive -Path "$env:PKG\*" -DestinationPath "$env:PKG.zip"
+
+      - name: Upload Windows artifact to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.VERSION }}"
+          name: "flux-agent v${{ env.VERSION }}"
+          generate_release_notes: true
+          files: "*.zip"
