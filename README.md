@@ -45,7 +45,7 @@ go build -o flux-agent.exe .
 
 **Windows release artifact:**
 
-Download `flux-agent_<version>_windows_amd64.zip` from GitHub Releases, extract it, copy `agent.yaml.example` to `agent.yaml`, then run `flux-agent.exe`.
+Download `flux-agent.exe` from GitHub Releases. Create `agent.yaml` from [`example.agent.yaml`](example.agent.yaml), then run `flux-agent.exe`.
 
 ## Configuration
 
