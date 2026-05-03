@@ -1,6 +1,5 @@
 agent_id: agent-1
 port: "50052"
-redis_addr: localhost:6379
 
 # network exposes node IPs as environment variables in every execution:
 #   FLUX_NODE_PRIVATE_IP  — auto-detected from network interfaces if omitted

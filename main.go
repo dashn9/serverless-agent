@@ -29,7 +29,7 @@ import (
 )
 
 type executionLogWriter struct {
-	mem          *memory.RedisMemory
+	mem          *memory.Store
 	executionID  string
 	agentID      string
 	functionName string
@@ -59,14 +59,14 @@ type AgentServer struct {
 	funcActiveCounts map[string]int32
 	mu               sync.Mutex
 	executor         *executor.Executor
-	memory           *memory.RedisMemory
+	memory           *memory.Store
 	monitor          *monitor.NodeMonitor
 
 	cancelMu sync.Mutex
 	cancels  map[string]context.CancelFunc
 }
 
-func NewAgentServer(agentID, nodePrivateIP, nodePublicIP string, mem *memory.RedisMemory, mon *monitor.NodeMonitor) *AgentServer {
+func NewAgentServer(agentID, nodePrivateIP, nodePublicIP string, mem *memory.Store, mon *monitor.NodeMonitor) *AgentServer {
 	return &AgentServer{
 		agentID:          agentID,
 		nodePrivateIP:    nodePrivateIP,
@@ -463,10 +463,11 @@ func main() {
 		}
 	}
 
-	// Initialize Redis memory
-	mem := memory.NewRedisMemory(agentConfig.RedisAddr)
+	mem, err := memory.NewStore()
+	if err != nil {
+		log.Fatalf("Failed to open agent store: %v", err)
+	}
 	defer mem.Close()
-	log.Printf("Connected to Redis at %s", agentConfig.RedisAddr)
 
 	// Start node monitor (samples every 5 seconds)
 	mon := monitor.NewNodeMonitor(5 * time.Second)

@@ -26,7 +26,6 @@ type NetworkConfig struct {
 type AgentConfig struct {
 	AgentID   string         `yaml:"agent_id"`
 	Port      string         `yaml:"port"`
-	RedisAddr string         `yaml:"redis_addr"`
 	Network   *NetworkConfig `yaml:"network,omitempty"`
 	TLS       *TLSConfig     `yaml:"tls,omitempty"`
 }
